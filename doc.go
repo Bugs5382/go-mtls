@@ -1,6 +1,34 @@
-// Package mtls is Mutual TLS for Go gRPC and HTTP services: server and client configs that reload their certificates from files, with the matching grpc options.
+// Package mtls is mutual TLS for the Go gRPC and HTTP services of one cluster: server and client configs that
+// read their certificate, key and CA from files and pick up renewed files without a restart.
 //
-// Replace this scaffold with the package's real implementation.
+// A [Provider] watches three PEM files, the certificate (with any chain), its key and the CA that signs every
+// service in the cluster. The files are named by [Files], or by the environment variables [EnvCertFile],
+// [EnvKeyFile] and [EnvCAFile] through [FilesFromEnv]. [NewProvider] loads them at start and fails with a
+// [FileError] naming the role and the path when one is missing or unreadable.
+//
+// # What it enforces
+//
+// The server config requires and verifies a client certificate against the CA file, and refuses anything below
+// TLS 1.3, so a plaintext caller, a caller with no certificate, a caller signed by another CA and an expired
+// certificate are all refused at the handshake. The client config verifies the server's certificate against the
+// CA file and the host name it dialed (the short Service name), so there is no skip-verify and no authority
+// override. A valid certificate says who is calling; it grants nothing, and a service keeps its own
+// authorization checks.
+//
+// # Rotation
+//
+// Each handshake compares the modified time and size of the three files with the last load, and re-reads them
+// when one changed. A connection that is open finishes on the certificate it started with; the next handshake
+// uses the new files. A renewal that cannot be read (half written, not PEM, key does not match) is passed to
+// [WithErrorHandler] and the last good files stay in use. Rotating the root CA is not automatic: put the old
+// and new roots in the CA file together, renew the leaves, then drop the old root.
+//
+// # Why not grpc-go's pemfile provider
+//
+// grpc-go's certprovider/pemfile re-reads on a timer (one hour by default) rather than when a file changes,
+// hands back key material rather than a tls.Config, and serves gRPC only; the advancedtls module builds on it
+// and has the same limits. The services here speak both gRPC and HTTP, so this package builds ordinary
+// crypto/tls configs and wraps them for grpc-go with [Provider.ServerOption] and [Provider.DialOption].
 package mtls
 
 /*
