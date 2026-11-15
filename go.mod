@@ -1,6 +1,6 @@
 module github.com/Bugs5382/go-mtls
 
-go 1.26.0
+go 1.26.11
 
 require google.golang.org/grpc v1.85.0
 

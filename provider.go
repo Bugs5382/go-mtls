@@ -109,7 +109,8 @@ func unwrapPathError(err error) error {
 }
 
 func (p *Provider) read(role, path string) ([]byte, error) {
-	b, err := os.ReadFile(path)
+	// The path is the operator's own configuration (Files or the environment), not caller input.
+	b, err := os.ReadFile(path) // #nosec G304
 	if err != nil {
 		return nil, &FileError{Role: role, Path: path, Err: unwrapPathError(err)}
 	}
